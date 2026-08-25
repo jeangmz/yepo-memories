@@ -1,0 +1,64 @@
+<div
+  class="toast-region"
+  x-data="{ open: false, message: '', kind: 'success', timer: 0 }"
+  @yepo-toast.window="
+    message = $event.detail.message;
+    kind = $event.detail.kind;
+    open = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => open = false, 4200)
+  "
+  aria-atomic="true"
+>
+  <div
+    class="toast"
+    :class="kind"
+    x-show="open"
+    x-cloak
+    :role="kind === 'error' ? 'alert' : 'status'"
+    :aria-live="kind === 'error' ? 'assertive' : 'polite'"
+  >
+    <span class="toast-icon" aria-hidden="true">
+      <svg
+        x-show="kind === 'success'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.25"
+      >
+        <path d="m5 12 4 4L19 6"></path>
+      </svg>
+      <svg
+        x-show="kind === 'error'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.25"
+      >
+        <path d="M12 8v5m0 3h.01"></path><circle cx="12" cy="12" r="9"></circle>
+      </svg>
+      <svg
+        x-show="kind === 'info'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.25"
+      >
+        <path d="M12 11v5m0-8h.01"></path><circle cx="12" cy="12" r="9"
+        ></circle>
+      </svg>
+    </span>
+    <p x-text="message"></p>
+    <button type="button" @click="open = false" aria-label="Cerrar aviso">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
+        <path d="m7 7 10 10M17 7 7 17"></path>
+      </svg>
+    </button>
+  </div>
+</div>

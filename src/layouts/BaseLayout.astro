@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import Toast from "../components/Toast.astro";
 interface Props {
   title: string;
   app?: "memorial" | "management";
@@ -18,10 +19,15 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
   @keydown.arrow-right={app === "memorial" ? "next()" : undefined}
 >
   <head
-    ><meta charset="UTF-8" /><link rel="icon" type="image/x-icon" href="/favicon.ico?v=1" sizes="any" /><meta
-      name="viewport"
-      content="width=device-width"
-    /><meta name="theme-color" content="#121211" /><title>{title}</title><link
+    ><meta charset="UTF-8" /><link
+      rel="icon"
+      type="image/x-icon"
+      href="/favicon.ico?v=1"
+      sizes="any"
+    /><meta name="viewport" content="width=device-width" /><meta
+      name="theme-color"
+      content="#121211"
+    /><title>{title}</title><link
       rel="preconnect"
       href="https://fonts.googleapis.com"
     /><link
@@ -46,7 +52,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
       )
     }</head
   ><body
-    ><slot /><script>
+    ><slot /><Toast /><script>
       import "../scripts/app.ts";
     </script></body
   >

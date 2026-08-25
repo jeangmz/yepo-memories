@@ -14,7 +14,7 @@
     </div><div class="gallery-stage">
     <p class="gallery-status" x-show="galleryLoading" aria-live="polite">Cargando recuerdos…</p>
     <p class="gallery-status" x-show="!galleryLoading && !visible.length">Aún no hay recuerdos publicados.</p>
-    <div class="gallery-glow" aria-hidden="true"></div><div class="grid">
+    <div class="grid">
       <template x-for="memory in shown" :key="memory.src"
         ><button class="card" :class="memory.size" @click="open(memory)"
           ><img

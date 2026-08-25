@@ -1,5 +1,6 @@
 import Alpine from "alpinejs";
 import { supabase } from "../lib/supabase";
+import { notify } from "../lib/toast";
 
 declare global {
   interface Window {
@@ -91,6 +92,7 @@ Alpine.data("management", () => ({
     await this.verifyAdmin(data.user.id);
     this.starting = false;
     this.busy = false;
+    if (this.state === "admin") notify("Sesión iniciada correctamente.");
   },
   async verifyAdmin(userId: string) {
     if (!supabase) return;
@@ -163,8 +165,11 @@ Alpine.data("management", () => ({
           ? "Recuerdo publicado."
           : "Recuerdo rechazado y eliminado.";
       this.isError = false;
+      notify(this.message);
     } catch {
-      this.fail("No pudimos completar la revisión. Inténtalo de nuevo.");
+      this.isError = true;
+      this.message = "No pudimos completar la revisión. Inténtalo de nuevo.";
+      notify(this.message, "error");
     } finally {
       this.busy = false;
     }
@@ -202,6 +207,7 @@ Alpine.data("management", () => ({
     this.state = "guest";
     this.isError = true;
     this.message = message;
+    notify(message, "error");
   },
   stopStarting(message: string) {
     this.starting = false;

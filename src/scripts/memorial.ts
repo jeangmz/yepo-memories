@@ -1,5 +1,6 @@
 import Alpine from "alpinejs";
 import { supabase } from "../lib/supabase";
+import { notify } from "../lib/toast";
 
 const maxImageBytes = 6 * 1024 ** 2;
 const maxVideoBytes = 10 * 1024 ** 2;
@@ -106,7 +107,7 @@ Alpine.data("memorial", () => ({
       .from("submissions")
       .select("id, sender_name, message, media(*)")
       .eq("status", "approved")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
     this.galleryLoading = false;
     if (error || !data) return;
     const sizes: Memory["size"][] = ["feature", "wide", "normal", "tall"];
@@ -211,8 +212,9 @@ Alpine.data("memorial", () => ({
           : file.type === "video/mp4" && file.size <= maxVideoBytes,
       );
     if (!valid)
-      return alert(
+      return notify(
         "Máximo: 5 archivos, 20 MB por envío, imágenes de 15 MB y vídeos MP4 de 10 MB.",
+        "error",
       );
     this.previews.forEach((item) => URL.revokeObjectURL(item.url));
     this.selectedFiles = chosen.map((file) => ({
@@ -227,18 +229,26 @@ Alpine.data("memorial", () => ({
       name: file.name,
       failed: false,
     }));
+    notify(
+      `${chosen.length} ${chosen.length === 1 ? "archivo listo" : "archivos listos"} para enviar.`,
+      "info",
+    );
   },
   async submit() {
     if (!this.selectedFiles.length)
-      return alert("Elige al menos una foto o vídeo.");
+      return notify("Elige al menos una foto o vídeo.", "error");
     if (!supabase) {
       this.submissionError = true;
       this.submissionStatus =
         "La conexión para enviar recuerdos no está configurada.";
+      notify(this.submissionStatus, "error");
       return;
     }
     if (!this.turnstileToken)
-      return alert("Completa la verificación de seguridad antes de enviar.");
+      return notify(
+        "Completa la verificación de seguridad antes de enviar.",
+        "error",
+      );
     this.sending = true;
     this.submissionStatus = "Preparando tus archivos…";
     this.submissionError = false;
@@ -288,12 +298,14 @@ Alpine.data("memorial", () => ({
       this.message = "";
       this.submissionStatus =
         "Tu recuerdo fue enviado a revisión. Gracias por compartirlo.";
+      notify(this.submissionStatus);
     } catch (error) {
       this.submissionError = true;
       this.submissionStatus =
         error instanceof Error
           ? error.message
           : "No pudimos enviar el recuerdo. Inténtalo de nuevo.";
+      notify(this.submissionStatus, "error");
     } finally {
       this.sending = false;
       this.resetTurnstile();
