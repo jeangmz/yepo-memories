@@ -108,6 +108,9 @@ Alpine.data("memorial", () => ({
   get hasOverflow() {
     return this.visible.length > this.galleryLimit;
   },
+  get zoomPercent() {
+    return `${Math.round(this.zoom * 100)}%`;
+  },
   async init() {
     this.mountTurnstile();
     if (!supabase) return;
@@ -196,6 +199,7 @@ Alpine.data("memorial", () => ({
   },
   zoomBy(amount: number) {
     this.zoom = Math.max(1, Math.min(3, this.zoom + amount));
+    if (this.zoom === 1) this.panX = this.panY = 0;
   },
   startPan(event: PointerEvent) {
     this.pointers.set(event.pointerId, {

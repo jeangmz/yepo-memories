@@ -8,12 +8,21 @@
             aria-label="Siguiente">›</button
           >
         </div><div class="nav">
-          <button @click="zoomBy(-.5)" aria-label="Alejar">−</button><button
-            @click="zoomBy(.5)"
+          <button
+            x-show="selected.type === 'photo'"
+            @click="zoomBy(-.25)"
+            aria-label="Alejar">−</button
+          ><span
+            class="zoom-level"
+            x-show="selected.type === 'photo'"
+            x-text="zoomPercent"></span><button
+            x-show="selected.type === 'photo'"
+            @click="zoomBy(.25)"
             aria-label="Acercar">+</button
           ><button class="close" @click="close()" aria-label="Cerrar">×</button>
         </div>
       </div><div
+        x-show="selected.type === 'photo'"
         class="photo-stage"
         :class="{ dragging }"
         @wheel.prevent="zoomBy($event.deltaY < 0 ? .25 : -.25)"
@@ -27,6 +36,15 @@
           :alt="selected.alt"
           :style="`transform: translate3d(${panX}px, ${panY}px, 0) scale(${zoom})`"
         />
+      </div><div class="video-stage" x-show="selected.type === 'video'">
+        <video
+          :src="selected.type === 'video' ? selected.src : ''"
+          controls
+          playsinline
+          preload="metadata"
+        >
+          Tu navegador no puede reproducir este vídeo.
+        </video>
       </div><div class="viewer-info">
         <span x-text="selected.by"></span><p x-text="selected.text"></p>
       </div>
