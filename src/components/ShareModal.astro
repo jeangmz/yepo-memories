@@ -23,13 +23,13 @@
       @drop.prevent="files($event.dataTransfer.files)"
       ><div>
         <strong>Fotos o vídeos</strong><span
-          >Máximo 5 archivos · 20 MB por envío</span
+          >Máximo 5 archivos - 60 MB por envío - Fotos hasta 15 MB - Vídeos 30 MB</span
         ><span class="select"
           >Elegir archivos<input
             type="file"
-            accept="image/*,video/mp4"
+            accept="image/jpeg,.jpg,.jpeg,image/png,.png,image/webp,.webp,video/mp4,.mp4"
             multiple
-            @change="files($event.target.files)"
+            @change="files($event.target.files); $event.target.value = ''"
           /></span
         >
       </div></label

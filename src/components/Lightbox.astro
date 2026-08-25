@@ -19,8 +19,8 @@
         @wheel.prevent="zoomBy($event.deltaY < 0 ? .25 : -.25)"
         @pointerdown="startPan($event)"
         @pointermove="movePan($event)"
-        @pointerup="endPan()"
-        @pointercancel="endPan()"
+        @pointerup="endPan($event)"
+        @pointercancel="endPan($event)"
       >
         <img
           :src="selected.src"

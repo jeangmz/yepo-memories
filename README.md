@@ -23,7 +23,7 @@ Las claves privadas permanecen exclusivamente en Supabase. Nunca se incluyen en 
 ## Funcionamiento
 
 - Cada aporte admite hasta cinco archivos y un mensaje de 300 caracteres.
-- Las imágenes se convierten a WebP y se limitan a 6 MB; los vídeos MP4 se limitan a 10 MB.
+- Las imágenes se convierten a WebP de hasta 2048 px y se limitan a 3 MB; los vídeos MP4 se limitan a 30 MB.
 - Turnstile protege el envío de recuerdos y el inicio de sesión.
 - Los archivos se cargan mediante URLs firmadas de corta duración.
 - Solo los recuerdos aprobados aparecen en la galería pública.

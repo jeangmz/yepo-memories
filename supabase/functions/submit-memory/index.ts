@@ -3,12 +3,13 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const maxImageBytes = 6 * 1024 ** 2;
-const maxVideoBytes = 10 * 1024 ** 2;
-const maxTotalBytes = 20 * 1024 ** 2;
+const maxImageBytes = 3 * 1024 ** 2;
+const maxVideoBytes = 30 * 1024 ** 2;
+const maxTotalBytes = 60 * 1024 ** 2;
 
 type FileInput = { kind: "image" | "video"; mimeType: string; size: number };
 
@@ -19,8 +20,10 @@ const json = (body: Record<string, unknown>, status = 200) =>
   });
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST") return json({ error: "Método no permitido." }, 405);
+  if (request.method === "OPTIONS")
+    return new Response(null, { headers: corsHeaders });
+  if (request.method !== "POST")
+    return json({ error: "Método no permitido." }, 405);
 
   try {
     const { turnstileToken, senderName, message, files } = await request.json();
@@ -36,23 +39,42 @@ Deno.serve(async (request) => {
       return json({ error: "Puedes enviar entre 1 y 5 archivos." }, 400);
 
     const validFiles = files as FileInput[];
-    const valid = validFiles.every((file) =>
-      file && typeof file.size === "number" && file.size > 0 &&
-      ((file.kind === "image" && file.mimeType === "image/webp" && file.size <= maxImageBytes) ||
-        (file.kind === "video" && file.mimeType === "video/mp4" && file.size <= maxVideoBytes)),
+    const valid = validFiles.every(
+      (file) =>
+        file &&
+        typeof file.size === "number" &&
+        file.size > 0 &&
+        ((file.kind === "image" &&
+          file.mimeType === "image/webp" &&
+          file.size <= maxImageBytes) ||
+          (file.kind === "video" &&
+            file.mimeType === "video/mp4" &&
+            file.size <= maxVideoBytes)),
     );
-    if (!valid || validFiles.reduce((total, file) => total + file.size, 0) > maxTotalBytes)
-      return json({ error: "Los archivos no cumplen los límites permitidos." }, 400);
+    if (
+      !valid ||
+      validFiles.reduce((total, file) => total + file.size, 0) > maxTotalBytes
+    )
+      return json(
+        { error: "Los archivos no cumplen los límites permitidos." },
+        400,
+      );
 
-    const verification = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      body: new URLSearchParams({
-        secret: Deno.env.get("TURNSTILE_SECRET_KEY") ?? "",
-        response: turnstileToken,
-      }),
-    }).then((response) => response.json());
+    const verification = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: new URLSearchParams({
+          secret: Deno.env.get("TURNSTILE_SECRET_KEY") ?? "",
+          response: turnstileToken,
+        }),
+      },
+    ).then((response) => response.json());
     if (!verification.success || verification.action !== "share_memory")
-      return json({ error: "La verificación expiró. Inténtalo otra vez." }, 400);
+      return json(
+        { error: "La verificación expiró. Inténtalo otra vez." },
+        400,
+      );
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -67,7 +89,8 @@ Deno.serve(async (request) => {
     if (submissionError) throw submissionError;
 
     const media = validFiles.map((file) => {
-      const bucket = file.kind === "image" ? "pending-images" : "pending-videos";
+      const bucket =
+        file.kind === "image" ? "pending-images" : "pending-videos";
       const path = `pending/${submissionId}/${crypto.randomUUID()}.${file.kind === "image" ? "webp" : "mp4"}`;
       return { bucket, path, file };
     });
@@ -83,11 +106,16 @@ Deno.serve(async (request) => {
     );
     if (mediaError) throw mediaError;
 
-    const uploads = await Promise.all(media.map(async ({ bucket, path }) => {
-      const { data, error } = await admin.storage.from(bucket).createSignedUploadUrl(path);
-      if (error || !data) throw error ?? new Error("No se pudo autorizar el archivo.");
-      return { bucket, path, token: data.token };
-    }));
+    const uploads = await Promise.all(
+      media.map(async ({ bucket, path }) => {
+        const { data, error } = await admin.storage
+          .from(bucket)
+          .createSignedUploadUrl(path);
+        if (error || !data)
+          throw error ?? new Error("No se pudo autorizar el archivo.");
+        return { bucket, path, token: data.token };
+      }),
+    );
     return json({ uploads });
   } catch (error) {
     console.error(error);

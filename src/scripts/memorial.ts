@@ -2,9 +2,11 @@ import Alpine from "alpinejs";
 import { supabase } from "../lib/supabase";
 import { notify } from "../lib/toast";
 
-const maxImageBytes = 6 * 1024 ** 2;
-const maxVideoBytes = 10 * 1024 ** 2;
-const maxTotalBytes = 20 * 1024 ** 2;
+const maxImageBytes = 3 * 1024 ** 2;
+const maxVideoBytes = 30 * 1024 ** 2;
+const maxTotalBytes = 60 * 1024 ** 2;
+const maxImageInputBytes = 15 * 1024 ** 2;
+const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 type SelectedFile = {
   file: File;
@@ -38,17 +40,20 @@ declare global {
 }
 
 async function webp(file: File) {
-  const bitmap = await createImageBitmap(file, {
-    imageOrientation: "from-image",
-  });
-  const scale = Math.min(1, 2560 / Math.max(bitmap.width, bitmap.height));
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error(`No pudimos leer “${file.name}”. Usa JPG, PNG o WebP.`);
+  }
+  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
 
-  for (const quality of [0.84, 0.74]) {
+  for (const quality of [0.8, 0.7, 0.6]) {
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/webp", quality),
     );
@@ -57,7 +62,7 @@ async function webp(file: File) {
         type: "image/webp",
       });
   }
-  throw new Error("No pudimos comprimir una imagen a menos de 6 MB.");
+  throw new Error("No pudimos comprimir una imagen a menos de 3 MB.");
 }
 
 Alpine.data("memorial", () => ({
@@ -74,6 +79,9 @@ Alpine.data("memorial", () => ({
   dragging: false,
   lastPointerX: 0,
   lastPointerY: 0,
+  pointers: new Map<number, { x: number; y: number }>(),
+  pinchDistance: 0,
+  pinchZoom: 1,
   message: "",
   senderName: "",
   sending: false,
@@ -181,41 +189,92 @@ Alpine.data("memorial", () => ({
     this.panX = 0;
     this.panY = 0;
     this.dragging = false;
+    this.pointers.clear();
+    this.pinchDistance = 0;
+    this.pinchZoom = 1;
   },
   zoomBy(amount: number) {
     this.zoom = Math.max(1, Math.min(3, this.zoom + amount));
   },
   startPan(event: PointerEvent) {
+    this.pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
     this.dragging = true;
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (this.pointers.size === 2) {
+      this.dragging = false;
+      this.pinchDistance = this.currentPinchDistance();
+      this.pinchZoom = this.zoom;
+    }
   },
   movePan(event: PointerEvent) {
+    if (!this.pointers.has(event.pointerId)) return;
+    this.pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (this.pointers.size === 2 && this.pinchDistance) {
+      this.zoom = Math.max(
+        1,
+        Math.min(
+          3,
+          this.pinchZoom * (this.currentPinchDistance() / this.pinchDistance),
+        ),
+      );
+      return;
+    }
     if (!this.dragging) return;
     this.panX += event.clientX - this.lastPointerX;
     this.panY += event.clientY - this.lastPointerY;
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
   },
-  endPan() {
+  endPan(event: PointerEvent) {
+    this.pointers.delete(event.pointerId);
+    this.pinchDistance = 0;
+    if (this.pointers.size === 1) {
+      const pointer = this.pointers.values().next().value;
+      this.dragging = true;
+      this.lastPointerX = pointer.x;
+      this.lastPointerY = pointer.y;
+      return;
+    }
     this.dragging = false;
+  },
+  currentPinchDistance() {
+    const [first, second] = [...this.pointers.values()];
+    return Math.hypot(second.x - first.x, second.y - first.y);
   },
   files(list: FileList) {
     const chosen = [...list];
-    const valid =
-      chosen.length <= 5 &&
-      chosen.reduce((sum, file) => sum + file.size, 0) <= maxTotalBytes &&
-      chosen.every((file) =>
-        file.type.startsWith("image/")
-          ? file.size <= 15 * 1024 ** 2
-          : file.type === "video/mp4" && file.size <= maxVideoBytes,
-      );
-    if (!valid)
+    if (chosen.length > 5)
+      return notify("Puedes seleccionar un máximo de 5 archivos.", "error");
+    const invalidType = chosen.find(
+      (file) =>
+        !supportedImageTypes.has(file.type) && file.type !== "video/mp4",
+    );
+    if (invalidType)
       return notify(
-        "Máximo: 5 archivos, 20 MB por envío, imágenes de 15 MB y vídeos MP4 de 10 MB.",
+        `“${invalidType.name}” no es compatible. Usa JPG, PNG, WebP o MP4.`,
         "error",
       );
+    const oversized = chosen.find(
+      (file) =>
+        (supportedImageTypes.has(file.type) &&
+          file.size > maxImageInputBytes) ||
+        (file.type === "video/mp4" && file.size > maxVideoBytes),
+    );
+    if (oversized)
+      return notify(
+        `“${oversized.name}” supera el límite: fotos 15 MB y vídeos 30 MB.`,
+        "error",
+      );
+    if (chosen.reduce((sum, file) => sum + file.size, 0) > maxTotalBytes)
+      return notify("El envío completo no puede superar los 60 MB.", "error");
     this.previews.forEach((item) => URL.revokeObjectURL(item.url));
     this.selectedFiles = chosen.map((file) => ({
       file,
@@ -262,9 +321,7 @@ Alpine.data("memorial", () => ({
       if (
         files.reduce((total, item) => total + item.file.size, 0) > maxTotalBytes
       )
-        throw new Error(
-          "Los archivos comprimidos superan los 20 MB por envío.",
-        );
+        throw new Error("Los archivos preparados superan los 60 MB por envío.");
 
       const { data, error } = await supabase.functions.invoke("submit-memory", {
         body: {
