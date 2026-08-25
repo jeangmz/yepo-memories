@@ -1,4 +1,5 @@
 import Alpine from "alpinejs";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { notify } from "../lib/toast";
 
@@ -335,6 +336,14 @@ Alpine.data("memorial", () => ({
           })),
         },
       });
+      if (error instanceof FunctionsHttpError) {
+        const body = await error.context.json().catch(() => null);
+        throw new Error(
+          typeof body?.error === "string"
+            ? body.error
+            : "No pudimos preparar el envío.",
+        );
+      }
       if (error) throw error;
       const uploads = data?.uploads as Upload[] | undefined;
       if (!uploads || uploads.length !== files.length)
