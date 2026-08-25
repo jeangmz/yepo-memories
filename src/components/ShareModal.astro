@@ -1,0 +1,81 @@
+<div class="overlay" x-show="modal === 'share'" x-cloak>
+  <section
+    class="dialog form"
+    aria-modal="true"
+    role="dialog"
+    aria-label="Compartir un recuerdo"
+  >
+    <div class="modal-head">
+      <div>
+        <h2>Comparte un recuerdo</h2><p>
+          Las imágenes se revisan antes de publicarse.
+        </p>
+      </div><button class="close" @click="close()" aria-label="Cerrar">×</button
+      >
+    </div><div
+      id="share-turnstile"
+      class="turnstile"
+      aria-label="Verificación de seguridad"
+    >
+    </div><label
+      class="drop"
+      @dragover.prevent
+      @drop.prevent="files($event.dataTransfer.files)"
+      ><div>
+        <strong>Fotos o vídeos</strong><span
+          >Máximo 5 archivos · 20 MB por envío</span
+        ><span class="select"
+          >Elegir archivos<input
+            type="file"
+            accept="image/*,video/mp4"
+            multiple
+            @change="files($event.target.files)"
+          /></span
+        >
+      </div></label
+    ><div class="preview" x-show="previews.length">
+      <template x-for="item in previews"
+        ><div class="preview-item">
+          <img
+            x-show="item.type === 'image' && !item.failed"
+            :src="item.url"
+            :alt="`Vista previa de ${item.name}`"
+            @error="item.failed = true"
+          /><div
+            class="file-preview"
+            x-show="item.type === 'video' || item.failed"
+          >
+            <span x-text="item.type === 'video' ? '▶' : 'Imagen' "></span>
+          </div><small x-text="item.name"></small>
+        </div></template
+      >
+    </div><label for="name">Tu nombre <small>(opcional)</small></label><input
+      id="name"
+      type="text"
+      maxlength="60"
+      x-model="senderName"
+      placeholder="Cómo quieres aparecer"
+    /><label for="message">Mensaje <small>(opcional)</small></label><textarea
+      id="message"
+      maxlength="300"
+      x-model="message"
+      placeholder="Cuéntanos algo breve"></textarea><div
+      class="counter"
+      x-text="`${300 - message.length} caracteres restantes`"
+    >
+    </div><p
+      class="form-status"
+      x-show="submissionStatus"
+      :class="{ error: submissionError }"
+      aria-live="polite"
+      x-text="submissionStatus"
+    >
+    </p><button
+      class="share send"
+      @click="submit()"
+      :disabled="sending || !turnstileToken"
+      ><span x-text="sending ? 'Enviando…' : 'Enviar a revisión'"
+      ></span></button
+    >
+  </section>
+</div>

@@ -1,0 +1,123 @@
+<main class="management">
+  <div
+    class="signin-overlay"
+    x-show="starting"
+    x-cloak
+    role="status"
+    aria-live="polite"
+  >
+    <div class="signin-loader">
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><circle cx="12" cy="12" r="8"></circle></svg
+      >
+      <p>Iniciando sesión…</p>
+      <small>Comprobando tu acceso</small>
+    </div>
+  </div>
+  <section class="management-login" x-show="state === 'guest'">
+    <a class="management-back" href="/">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h10"></path></svg
+      >
+      Volver a los recuerdos
+    </a>
+    <h1 class="text-center">Iniciar sesión</h1>
+    <form @submit.prevent="signIn()">
+      <label for="admin-email">Correo</label>
+      <input
+        id="admin-email"
+        type="email"
+        x-model="email"
+        autocomplete="email"
+        required
+      />
+      <label for="admin-password">Contraseña</label>
+      <input
+        id="admin-password"
+        type="password"
+        x-model="password"
+        autocomplete="current-password"
+        required
+      />
+      <div id="login-turnstile" class="turnstile" aria-label="Verificación de seguridad"></div>
+      <p
+        class="management-status"
+        x-show="message"
+        :class="{ error: isError }"
+        aria-live="polite"
+        x-text="message"
+      >
+      </p>
+      <button class="share management-submit" :disabled="busy || !turnstileToken">
+        <span x-text="busy ? 'Verificando…' : 'Entrar'"></span>
+      </button>
+    </form>
+  </section>
+
+  <section class="management-panel" x-show="state === 'admin'">
+    <header class="management-header">
+      <div>
+        <p class="management-mark">Gestión privada</p><h1>
+          Recuerdos pendientes
+        </h1>
+      </div>
+      <button class="management-signout" @click="signOut()"
+        >Cerrar sesión</button
+      >
+    </header>
+    <p
+      class="management-status"
+      x-show="message"
+      :class="{ error: isError }"
+      aria-live="polite"
+      x-text="message"
+    >
+    </p>
+    <p class="management-empty" x-show="!busy && !submissions.length">
+      No hay recuerdos pendientes por revisar.
+    </p>
+    <div class="submission-list">
+      <template x-for="submission in submissions" :key="submission.id">
+        <article class="submission">
+          <div class="submission-copy">
+            <p
+              class="submission-by"
+              x-text="submission.sender_name || 'Anónimo'"
+            >
+            </p>
+            <p x-text="submission.message || 'Sin mensaje.'"></p>
+          </div>
+          <div class="submission-media">
+            <template x-for="item in submission.media" :key="item.id">
+              <div class="submission-file">
+                <img
+                  x-show="item.kind === 'image'"
+                  :src="item.url"
+                  alt="Archivo pendiente de revisión"
+                />
+                <video x-show="item.kind === 'video'" :src="item.url" controls
+                ></video>
+              </div>
+            </template>
+          </div>
+          <div class="submission-actions">
+            <button
+              class="review reject"
+              @click="review(submission, 'rejected')"
+              :disabled="busy">Rechazar</button
+            >
+            <button
+              class="share review"
+              @click="review(submission, 'approved')"
+              :disabled="busy">Aprobar</button
+            >
+          </div>
+        </article>
+      </template>
+    </div>
+  </section>
+</main>

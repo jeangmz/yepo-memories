@@ -1,0 +1,46 @@
+<section>
+  <div class="gallery-head">
+    <div>
+      <h2>El álbum de Jafet</h2><p>Fotos y videos compartidos con cariño.</p>
+    </div><div class="filters" aria-label="Filtrar recuerdos">
+      <template x-for="option in ['all', 'photo', 'video']"
+        ><button
+          :class="{ active: filter === option }"
+          @click="filter = option; expanded = false"
+          x-text="{ all: 'Todos', photo: 'Fotos', video: 'Videos' }[option]"
+        ></button></template
+      >
+    </div>
+    </div><div class="gallery-stage">
+    <p class="gallery-status" x-show="galleryLoading" aria-live="polite">Cargando recuerdos…</p>
+    <p class="gallery-status" x-show="!galleryLoading && !visible.length">Aún no hay recuerdos publicados.</p>
+    <div class="gallery-glow" aria-hidden="true"></div><div class="grid">
+      <template x-for="memory in shown" :key="memory.src"
+        ><button class="card" :class="memory.size" @click="open(memory)"
+          ><img
+            :src="memory.src"
+            :alt="memory.alt"
+            :style="`object-position: ${memory.focus}`"
+            loading="lazy"
+          /><span class="play" x-show="memory.type === 'video'"
+            ><svg viewBox="0 0 24 24" fill="currentColor"
+              ><path d="m8 5 11 7-11 7V5z"></path></svg
+            ></span
+          ><span class="card-label" x-text="memory.by"></span></button
+        ></template
+      >
+    </div><button
+      class="gallery-more"
+      x-show="hasOverflow"
+      @click="expanded = !expanded"
+      :aria-expanded="expanded"
+      ><span x-text="expanded ? 'Ver menos' : 'Ver más'"></span><svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        :class="{ flipped: expanded }"
+        aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg
+      ></button>
+  </div>
+</section>

@@ -1,0 +1,35 @@
+<template x-if="modal === 'view' && selected"
+  ><div class="overlay">
+    <section class="viewer" aria-modal="true" role="dialog">
+      <div class="viewer-top">
+        <div class="nav">
+          <button @click="previous()" aria-label="Anterior">‹</button><button
+            @click="next()"
+            aria-label="Siguiente">›</button
+          >
+        </div><div class="nav">
+          <button @click="zoomBy(-.5)" aria-label="Alejar">−</button><button
+            @click="zoomBy(.5)"
+            aria-label="Acercar">+</button
+          ><button class="close" @click="close()" aria-label="Cerrar">×</button>
+        </div>
+      </div><div
+        class="photo-stage"
+        :class="{ dragging }"
+        @wheel.prevent="zoomBy($event.deltaY < 0 ? .25 : -.25)"
+        @pointerdown="startPan($event)"
+        @pointermove="movePan($event)"
+        @pointerup="endPan()"
+        @pointercancel="endPan()"
+      >
+        <img
+          :src="selected.src"
+          :alt="selected.alt"
+          :style="`transform: translate3d(${panX}px, ${panY}px, 0) scale(${zoom})`"
+        />
+      </div><div class="viewer-info">
+        <span x-text="selected.by"></span><p x-text="selected.text"></p>
+      </div>
+    </section>
+  </div></template
+>

@@ -1,0 +1,20 @@
+{
+  "name": "recuerdos-con-amor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.10",
+    "@supabase/supabase-js": "^2.112.3",
+    "alpinejs": "^3.15.9",
+    "astro": "^5.17.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

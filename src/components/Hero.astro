@@ -1,0 +1,20 @@
+---
+import { memorial } from "../data/site";
+---
+
+<section class="hero" style={`--hero-image: url('${memorial.heroImage}'); --hero-focus: ${memorial.heroFocus}`}>
+  <div class="hero-ambient" aria-hidden="true"></div>
+  <div class="hero-photo" aria-hidden="true"></div>
+  <div class="hero-shade" aria-hidden="true"></div>
+  <div class="hero-content">
+  <h1>{memorial.name}</h1><p
+    class="sub"
+  >
+    {memorial.phrase}
+  </p><button class="share" @click="modal = 'share'"
+    ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      ><path d="M12 5v14M5 12h14"></path></svg
+    >Compartir un recuerdo</button
+  >
+</div>
+</section>

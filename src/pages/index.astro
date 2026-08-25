@@ -1,0 +1,29 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/Hero.astro";
+import Gallery from "../components/Gallery.astro";
+import ShareModal from "../components/ShareModal.astro";
+import Lightbox from "../components/Lightbox.astro";
+import { memorial } from "../data/site";
+
+const year = new Date().getFullYear();
+---
+
+<BaseLayout title={`Recuerdos con amor para ${memorial.name}`}>
+  <main>
+    <Hero />
+    <div class="shell memorial-shell">
+      <div class="album">
+        <Gallery />
+      </div>
+      <footer class="love">
+        <p>Desarrollado con amor para <strong>{memorial.firstName}</strong>.</p>
+        <small
+          >© {year} Recuerdos con amor. Todos los derechos reservados.</small
+        >
+      </footer>
+    </div>
+  </main>
+  <ShareModal />
+  <Lightbox />
+</BaseLayout>

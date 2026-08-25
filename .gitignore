@@ -1,0 +1,20 @@
+# Dependencies and package-manager cache
+node_modules/
+.pnpm-store/
+
+# Astro / Cloudflare output
+.astro/
+dist/
+.wrangler/
+
+# Local environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+
+.agents/
+.claude/
+.codex
+.impeccable
+.opencode
