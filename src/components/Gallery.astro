@@ -19,23 +19,50 @@
       Aún no hay recuerdos publicados.
     </p>
     <div class="grid">
-      <template x-for="memory in shown" :key="memory.src"
-        ><button class="card" :class="memory.size" @click="open(memory)"
-          ><img
-            x-show="memory.type === 'photo'"
-            :src="memory.type === 'photo' ? memory.src : ''"
-            :alt="memory.alt"
-            :style="`object-position: ${memory.focus}`"
-            loading="lazy"
-          /><video
-            x-show="memory.type === 'video'"
+      <template x-for="(memory, index) in shown" :key="memory.src"
+        ><button
+          class="card"
+          :class="[memory.size, `tile-${index % 5}`]"
+          @click="open(memory)"
+          ><template x-if="memory.type === 'photo'"
+            ><img
+              :src="memory.src"
+              :alt="memory.alt"
+              :style="`object-position: ${memory.focus}`"
+              loading="lazy"
+            /></template
+          ><template x-if="memory.type === 'video' && memory.poster"
+            ><img
+              :src="memory.poster"
+              :alt="memory.alt"
+              :style="`object-position: ${memory.focus}`"
+              @error="clearBrokenPoster(memory)"
+              loading="lazy"
+            /></template
+          ><video
+            x-show="memory.type === 'video' && !memory.poster && !memory.posterFailed"
             :src="memory.type === 'video' ? memory.src : ''"
-            preload="metadata"
+            @loadedmetadata="scheduleVideoFallback(memory)"
+            @loadeddata="memory.videoReady = true; captureVideoPoster(memory, $event)"
+            @seeked="captureVideoPoster(memory, $event)"
+            @error="markVideoPosterFailed(memory)"
+            preload="auto"
             muted
             playsinline
             aria-hidden="true"></video><span
-            class="play"
-            x-show="memory.type === 'video'"
+            class="video-preview-fallback"
+            x-show="memory.type === 'video' && memory.posterFailed"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              aria-hidden="true"
+              ><path
+                d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-9Z"
+              ></path><path d="m10 9 5 3-5 3V9Z"></path></svg
+            ><span>Vista previa no disponible</span></span
+          ><span class="play" x-show="memory.type === 'video'"
             ><svg viewBox="0 0 24 24" fill="currentColor"
               ><path d="m8 5 11 7-11 7V5z"></path></svg
             ></span

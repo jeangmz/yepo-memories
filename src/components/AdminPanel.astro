@@ -43,7 +43,12 @@
         autocomplete="current-password"
         required
       />
-      <div id="login-turnstile" class="turnstile" aria-label="Verificación de seguridad"></div>
+      <div
+        id="login-turnstile"
+        class="turnstile"
+        aria-label="Verificación de seguridad"
+      >
+      </div>
       <p
         class="management-status"
         x-show="message"
@@ -52,7 +57,10 @@
         x-text="message"
       >
       </p>
-      <button class="share management-submit" :disabled="busy || !turnstileToken">
+      <button
+        class="share management-submit"
+        :disabled="busy || !turnstileToken"
+      >
         <span x-text="busy ? 'Verificando…' : 'Entrar'"></span>
       </button>
     </form>
@@ -61,8 +69,9 @@
   <section class="management-panel" x-show="state === 'admin'">
     <header class="management-header">
       <div>
-        <p class="management-mark">Gestión privada</p><h1>
-          Recuerdos pendientes
+        <p class="management-mark">Gestión privada</p><h1
+          x-text="tab === 'pending' ? 'Recuerdos pendientes' : 'Recuerdos publicados'"
+        >
         </h1>
       </div>
       <button class="management-signout" @click="signOut()"
@@ -77,47 +86,157 @@
       x-text="message"
     >
     </p>
-    <p class="management-empty" x-show="!busy && !submissions.length">
-      No hay recuerdos pendientes por revisar.
-    </p>
-    <div class="submission-list">
-      <template x-for="submission in submissions" :key="submission.id">
-        <article class="submission">
-          <div class="submission-copy">
-            <p
-              class="submission-by"
-              x-text="submission.sender_name || 'Anónimo'"
-            >
-            </p>
-            <p x-text="submission.message || 'Sin mensaje.'"></p>
-          </div>
-          <div class="submission-media">
-            <template x-for="item in submission.media" :key="item.id">
-              <div class="submission-file">
-                <img
-                  x-show="item.kind === 'image'"
-                  :src="item.url"
-                  alt="Archivo pendiente de revisión"
-                />
-                <video x-show="item.kind === 'video'" :src="item.url" controls
-                ></video>
+    <div class="management-tabs" role="tablist" aria-label="Recuerdos">
+      <button
+        :class="{ active: tab === 'pending' }"
+        :aria-selected="tab === 'pending'"
+        @click="setTab('pending')">Pendientes</button
+      >
+      <button
+        :class="{ active: tab === 'published' }"
+        :aria-selected="tab === 'published'"
+        @click="setTab('published')">Publicados</button
+      >
+    </div>
+    <div x-show="tab === 'pending'">
+      <p class="management-empty" x-show="!busy && !submissions.length">
+        No hay recuerdos pendientes por revisar.
+      </p>
+      <div class="submission-list">
+        <template x-for="submission in submissions" :key="submission.id">
+          <article class="submission">
+            <div class="submission-copy">
+              <p
+                class="submission-by"
+                x-text="submission.sender_name || 'Anónimo'"
+              >
+              </p>
+              <p x-text="submission.message || 'Sin mensaje.'"></p>
+            </div>
+            <div class="submission-media">
+              <template x-for="item in submission.media" :key="item.id">
+                <div class="submission-file">
+                  <img
+                    x-show="item.kind === 'image'"
+                    :src="item.url"
+                    alt="Archivo pendiente de revisión"
+                  />
+                  <video x-show="item.kind === 'video'" :src="item.url" controls
+                  ></video>
+                </div>
+              </template>
+            </div>
+            <div class="submission-actions">
+              <button
+                class="review reject"
+                @click="review(submission, 'rejected')"
+                :disabled="busy">Rechazar</button
+              >
+              <button
+                class="share review"
+                @click="review(submission, 'approved')"
+                :disabled="busy">Aprobar</button
+              >
+            </div>
+          </article>
+        </template>
+      </div>
+    </div>
+    <div x-show="tab === 'published'">
+      <p class="management-empty" x-show="!busy && !published.length">
+        Aún no hay recuerdos publicados.
+      </p>
+      <div class="submission-list">
+        <template x-for="submission in published" :key="submission.id">
+          <article class="submission published-submission">
+            <div class="published-summary">
+              <div class="submission-copy">
+                <p class="published-meta">
+                  <time
+                    :datetime="submission.created_at"
+                    x-text="formatDate(submission.created_at)"></time>
+                  <span
+                    x-text="`${submission.media.length} ${submission.media.length === 1 ? 'archivo' : 'archivos'}`"
+                  ></span>
+                </p>
+                <p
+                  class="submission-by"
+                  x-text="submission.sender_name || 'Anónimo'"
+                >
+                </p>
+                <p x-text="submission.message || 'Sin mensaje.'"></p>
               </div>
-            </template>
-          </div>
-          <div class="submission-actions">
-            <button
-              class="review reject"
-              @click="review(submission, 'rejected')"
-              :disabled="busy">Rechazar</button
+              <div
+                class="submission-media published-media"
+                aria-label="Archivos publicados"
+              >
+                <template x-for="item in submission.media" :key="item.id">
+                  <div class="submission-file">
+                    <img
+                      x-show="item.kind === 'image' || item.poster"
+                      :src="item.kind === 'image' ? item.url : item.poster"
+                      alt="Archivo publicado"
+                    />
+                    <video
+                      x-show="item.kind === 'video' && !item.poster"
+                      :src="item.url"
+                      controls
+                      preload="metadata"></video>
+                  </div>
+                </template>
+              </div>
+              <div class="submission-actions published-row-actions">
+                <button
+                  type="button"
+                  class="review"
+                  @click="toggleEditor(submission.id)"
+                  :aria-expanded="editingId === submission.id"
+                  :disabled="busy"
+                  x-text="editingId === submission.id ? 'Cerrar edición' : 'Editar texto'"
+                ></button>
+                <button
+                  type="button"
+                  class="review reject"
+                  @click="deletePublished(submission)"
+                  :disabled="busy">Eliminar</button
+                >
+              </div>
+            </div>
+            <form
+              class="published-editor"
+              x-show="editingId === submission.id"
+              x-cloak
+              @submit.prevent="savePublished(submission)"
             >
-            <button
-              class="share review"
-              @click="review(submission, 'approved')"
-              :disabled="busy">Aprobar</button
-            >
-          </div>
-        </article>
-      </template>
+              <label
+                >Nombre<input
+                  type="text"
+                  x-model="submission.sender_name"
+                  maxlength="60"
+                  placeholder="Anónimo"
+                /></label
+              >
+              <label
+                >Mensaje<textarea
+                  x-model="submission.message"
+                  maxlength="300"
+                  placeholder="Sin mensaje."></textarea></label
+              >
+              <div class="published-actions">
+                <button class="share review" :disabled="busy"
+                  >Guardar cambios</button
+                >
+                <button
+                  type="button"
+                  class="review"
+                  @click="toggleEditor(submission.id)"
+                  :disabled="busy">Cancelar</button
+                >
+              </div>
+            </form>
+          </article>
+        </template>
+      </div>
     </div>
   </section>
 </main>

@@ -1,0 +1,27 @@
+<section
+  class="memory-stroll"
+  x-show="strollPhoto"
+  x-cloak
+  aria-labelledby="stroll-title"
+>
+  <header class="memory-stroll-head">
+    <h2 id="stroll-title">Un paseo entre recuerdos</h2>
+  </header>
+  <div class="memory-stroll-scene">
+    <template x-if="strollPhoto">
+      <figure
+        class="memory-stroll-photo"
+        :class="{ 'is-reverse': strollRevision % 2 === 0 }"
+        :style="`animation-name: ${strollRevision % 2 ? 'stroll-arrive-a' : 'stroll-arrive-b'}`"
+      >
+        <div
+          class="memory-stroll-ambient"
+          :style="`background-image: url('${strollPhoto.src}')`"
+          aria-hidden="true"
+        >
+        </div>
+        <img :src="strollPhoto.src" :alt="strollPhoto.alt" />
+      </figure>
+    </template>
+  </div>
+</section>

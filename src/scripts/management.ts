@@ -28,6 +28,72 @@ type PendingSubmission = {
   media: PendingMedia[];
 };
 
+type PublishedMedia = {
+  id: string;
+  kind: "image" | "video";
+  published_bucket: "gallery-images" | "gallery-videos" | null;
+  published_path: string | null;
+  poster_bucket: "gallery-images" | null;
+  poster_path: string | null;
+  url: string;
+  poster: string;
+};
+
+type PublishedSubmission = {
+  id: string;
+  sender_name: string | null;
+  message: string | null;
+  created_at: string;
+  media: PublishedMedia[];
+};
+
+async function makeVideoPoster(file: Blob) {
+  const source = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = source;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.addEventListener("loadeddata", () => resolve(), { once: true });
+      video.addEventListener(
+        "error",
+        () => reject(new Error("Vídeo no compatible.")),
+        {
+          once: true,
+        },
+      );
+      video.load();
+    });
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    const scale = Math.min(
+      1,
+      960 / Math.max(video.videoWidth, video.videoHeight),
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas
+      .getContext("2d")
+      ?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.72),
+    );
+    return blob
+      ? new File([blob], `${crypto.randomUUID()}.webp`, { type: "image/webp" })
+      : null;
+  } catch {
+    return null;
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(source);
+  }
+}
+
 Alpine.data("management", () => ({
   state: "checking" as "checking" | "guest" | "admin",
   email: "",
@@ -37,7 +103,10 @@ Alpine.data("management", () => ({
   message: "",
   isError: false,
   userId: "",
+  tab: "pending" as "pending" | "published",
   submissions: [] as PendingSubmission[],
+  published: [] as PublishedSubmission[],
+  editingId: "",
   turnstileToken: "",
   turnstileWidget: "",
   async init() {
@@ -107,9 +176,15 @@ Alpine.data("management", () => ({
     }
     this.userId = userId;
     this.state = "admin";
-    await this.loadSubmissions();
+    await this.loadPending();
   },
-  async loadSubmissions() {
+  async setTab(tab: "pending" | "published") {
+    this.tab = tab;
+    this.editingId = "";
+    this.message = "";
+    if (tab === "published") await this.loadPublished();
+  },
+  async loadPending() {
     if (!supabase) return;
     this.busy = true;
     const { data, error } = await supabase
@@ -136,6 +211,40 @@ Alpine.data("management", () => ({
       })),
     );
   },
+  async loadPublished() {
+    if (!supabase) return;
+    this.busy = true;
+    const { data, error } = await supabase
+      .from("submissions")
+      .select(
+        "id, sender_name, message, created_at, media(id, kind, published_bucket, published_path, poster_bucket, poster_path)",
+      )
+      .eq("status", "approved")
+      .order("created_at", { ascending: false });
+    this.busy = false;
+    if (error || !data) {
+      this.isError = true;
+      this.message = "No pudimos cargar los recuerdos publicados.";
+      return notify(this.message, "error");
+    }
+    this.published = data.map((submission) => ({
+      ...submission,
+      media: submission.media
+        .filter((item) => item.published_bucket && item.published_path)
+        .map((item) => ({
+          ...item,
+          url: supabase.storage
+            .from(item.published_bucket!)
+            .getPublicUrl(item.published_path!).data.publicUrl,
+          poster:
+            item.poster_bucket && item.poster_path
+              ? supabase.storage
+                  .from(item.poster_bucket)
+                  .getPublicUrl(item.poster_path).data.publicUrl
+              : "",
+        })),
+    }));
+  },
   async review(submission: PendingSubmission, status: "approved" | "rejected") {
     if (!supabase) return;
     this.busy = true;
@@ -159,7 +268,7 @@ Alpine.data("management", () => ({
           .from(item.pending_bucket)
           .remove([item.pending_path]);
       }
-      await this.loadSubmissions();
+      await this.loadPending();
       this.message =
         status === "approved"
           ? "Recuerdo publicado."
@@ -191,16 +300,102 @@ Alpine.data("management", () => ({
         upsert: false,
       });
     if (uploadError) throw uploadError;
+    const poster = item.kind === "video" ? await makeVideoPoster(file) : null;
+    let posterPath: string | null = null;
+    if (poster) {
+      const candidatePath = `approved/${submissionId}/${item.id}.poster.webp`;
+      const { error: posterError } = await supabase.storage
+        .from("gallery-images")
+        .upload(candidatePath, poster, {
+          contentType: poster.type,
+          upsert: false,
+        });
+      if (!posterError) posterPath = candidatePath;
+    }
     const { error: mediaError } = await supabase
       .from("media")
-      .update({ published_bucket: bucket, published_path: path })
+      .update({
+        published_bucket: bucket,
+        published_path: path,
+        poster_bucket: posterPath ? "gallery-images" : null,
+        poster_path: posterPath,
+      })
       .eq("id", item.id);
     if (mediaError) throw mediaError;
+  },
+  async savePublished(submission: PublishedSubmission) {
+    if (!supabase) return;
+    const senderName = submission.sender_name?.trim() || null;
+    const message = submission.message?.trim() || null;
+    if ((senderName?.length ?? 0) > 60 || (message?.length ?? 0) > 300)
+      return notify("El nombre o mensaje supera el límite permitido.", "error");
+    this.busy = true;
+    const { error } = await supabase
+      .from("submissions")
+      .update({ sender_name: senderName, message })
+      .eq("id", submission.id);
+    this.busy = false;
+    if (error) return notify("No pudimos guardar los cambios.", "error");
+    this.editingId = "";
+    notify("Cambios guardados.");
+  },
+  toggleEditor(submissionId: string) {
+    this.editingId = this.editingId === submissionId ? "" : submissionId;
+  },
+  formatDate(value: string) {
+    return new Intl.DateTimeFormat("es-PA", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(value));
+  },
+  async deletePublished(submission: PublishedSubmission) {
+    if (!supabase) return;
+    if (
+      !window.confirm(
+        "Eliminar este recuerdo y todos sus archivos? Esta acción no se puede deshacer.",
+      )
+    )
+      return;
+    this.busy = true;
+    try {
+      const filesByBucket = new Map<string, string[]>();
+      for (const item of submission.media) {
+        for (const [bucket, path] of [
+          [item.published_bucket, item.published_path],
+          [item.poster_bucket, item.poster_path],
+        ] as const) {
+          if (!bucket || !path) continue;
+          filesByBucket.set(bucket, [
+            ...(filesByBucket.get(bucket) ?? []),
+            path,
+          ]);
+        }
+      }
+      for (const [bucket, paths] of filesByBucket) {
+        const { error } = await supabase.storage.from(bucket).remove(paths);
+        if (error) throw error;
+      }
+      const { error } = await supabase
+        .from("submissions")
+        .delete()
+        .eq("id", submission.id);
+      if (error) throw error;
+      await this.loadPublished();
+      this.editingId = "";
+      notify("Recuerdo eliminado.");
+    } catch {
+      notify("No pudimos eliminar este recuerdo.", "error");
+    } finally {
+      this.busy = false;
+    }
   },
   async signOut() {
     if (supabase) await supabase.auth.signOut();
     this.state = "guest";
     this.submissions = [];
+    this.published = [];
+    this.editingId = "";
     this.message = "";
   },
   fail(message: string) {

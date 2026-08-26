@@ -22,7 +22,7 @@ El contenido del homenaje se administra desde `src/data/site.ts`: nombre, frase 
 3. Turnstile valida la interacción y la Edge Function `submit-memory` autoriza URLs firmadas temporales.
 4. El recuerdo queda en revisión privada.
 5. Una persona administradora lo aprueba o rechaza desde `/gestion-yepo`.
-6. Al aprobarlo, los archivos pasan a los buckets públicos y aparecen en la galería.
+6. Al aprobarlo, los archivos pasan a los buckets públicos y aparecen en la galería. Los vídeos nuevos generan además una portada WebP ligera para su vista previa.
 
 Límites: imágenes de entrada de hasta 15 MB, optimizadas a WebP de hasta 2048 px y 3 MB; vídeos MP4 de hasta 30 MB y 60 MB por envío.
 
@@ -37,7 +37,7 @@ Límites: imágenes de entrada de hasta 15 MB, optimizadas a WebP de hasta 2048 
 
 ## Gestión privada
 
-La ruta `/gestion-yepo` requiere una sesión válida y la presencia de la cuenta en `admin_users`. Conocer la ruta no concede acceso. Desde allí se revisan, aprueban o rechazan los aportes.
+La ruta `/gestion-yepo` requiere una sesión válida y la presencia de la cuenta en `admin_users`. Conocer la ruta no concede acceso. Desde allí se revisan, aprueban o rechazan los aportes; la pestaña **Publicados** permite corregir nombre o mensaje y eliminar un recuerdo junto con sus archivos.
 
 ## Variables de entorno
 

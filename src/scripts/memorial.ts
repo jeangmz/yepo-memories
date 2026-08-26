@@ -22,6 +22,11 @@ type Memory = {
   text: string;
   size: "feature" | "tall" | "wide" | "normal";
   focus: string;
+  poster?: string;
+  posterObjectUrl?: boolean;
+  posterSeeking?: boolean;
+  posterFailed?: boolean;
+  videoReady?: boolean;
 };
 
 type Upload = {
@@ -69,9 +74,12 @@ async function webp(file: File) {
 Alpine.data("memorial", () => ({
   memories: [] as Memory[],
   galleryLoading: false,
+  strollPhoto: null as Memory | null,
+  strollRevision: 0,
+  strollTimer: 0 as number | undefined,
   filter: "all",
   expanded: false,
-  galleryLimit: 6,
+  galleryLimit: 10,
   modal: null as null | "share" | "view",
   selected: null as Memory | null,
   zoom: 1,
@@ -122,7 +130,17 @@ Alpine.data("memorial", () => ({
       .order("created_at", { ascending: true });
     this.galleryLoading = false;
     if (error || !data) return;
-    const sizes: Memory["size"][] = ["feature", "wide", "normal", "tall"];
+    this.memories.forEach((memory) => {
+      if (memory.posterObjectUrl && memory.poster)
+        URL.revokeObjectURL(memory.poster);
+    });
+    const sizes: Memory["size"][] = [
+      "feature",
+      "wide",
+      "normal",
+      "wide",
+      "normal",
+    ];
     this.memories = data.flatMap((submission, submissionIndex) =>
       (submission.media ?? [])
         .filter((item) => item.published_bucket && item.published_path)
@@ -131,6 +149,12 @@ Alpine.data("memorial", () => ({
           src: supabase.storage
             .from(item.published_bucket)
             .getPublicUrl(item.published_path).data.publicUrl,
+          poster:
+            item.poster_bucket && item.poster_path
+              ? supabase.storage
+                  .from(item.poster_bucket)
+                  .getPublicUrl(item.poster_path).data.publicUrl
+              : undefined,
           alt: submission.message || "Recuerdo compartido con cariño",
           by: submission.sender_name || "Alguien que lo recuerda",
           text: submission.message || "",
@@ -138,6 +162,42 @@ Alpine.data("memorial", () => ({
           focus: "50% 50%",
         })),
     );
+    this.startPhotoStroll();
+    document.addEventListener("visibilitychange", () => this.syncPhotoStroll());
+    window.addEventListener("pagehide", () => this.stopPhotoStroll(), {
+      once: true,
+    });
+  },
+  get strollPhotos() {
+    return this.memories.filter((memory: Memory) => memory.type === "photo");
+  },
+  nextPhotoStroll() {
+    const photos = this.strollPhotos;
+    if (!photos.length) return (this.strollPhoto = null);
+    const choices =
+      photos.length > 1
+        ? photos.filter((photo: Memory) => photo.src !== this.strollPhoto?.src)
+        : photos;
+    this.strollPhoto = choices[Math.floor(Math.random() * choices.length)];
+    this.strollRevision += 1;
+  },
+  stopPhotoStroll() {
+    if (this.strollTimer) window.clearInterval(this.strollTimer);
+    this.strollTimer = undefined;
+  },
+  startPhotoStroll() {
+    this.stopPhotoStroll();
+    this.nextPhotoStroll();
+    if (
+      this.strollPhotos.length > 1 &&
+      document.visibilityState === "visible" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      this.strollTimer = window.setInterval(() => this.nextPhotoStroll(), 2000);
+  },
+  syncPhotoStroll() {
+    if (document.visibilityState === "visible") this.startPhotoStroll();
+    else this.stopPhotoStroll();
   },
   mountTurnstile() {
     if (!window.yepoTurnstileSiteKey) return;
@@ -253,6 +313,60 @@ Alpine.data("memorial", () => ({
   currentPinchDistance() {
     const [first, second] = [...this.pointers.values()];
     return Math.hypot(second.x - first.x, second.y - first.y);
+  },
+  captureVideoPoster(memory: Memory, event: Event) {
+    if (memory.poster || memory.posterFailed) return;
+    const video = event.currentTarget as HTMLVideoElement;
+    if (!video.videoWidth || !video.videoHeight)
+      return this.markVideoPosterFailed(memory);
+    if (
+      !memory.posterSeeking &&
+      Number.isFinite(video.duration) &&
+      video.duration > 1
+    ) {
+      memory.posterSeeking = true;
+      video.currentTime = Math.min(1, video.duration / 2);
+      return;
+    }
+
+    const scale = Math.min(
+      1,
+      960 / Math.max(video.videoWidth, video.videoHeight),
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const context = canvas.getContext("2d");
+    if (!context) return this.markVideoPosterFailed(memory);
+
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return this.markVideoPosterFailed(memory);
+          memory.poster = URL.createObjectURL(blob);
+          memory.posterObjectUrl = true;
+        },
+        "image/webp",
+        0.72,
+      );
+    } catch {}
+  },
+  markVideoPosterFailed(memory: Memory) {
+    memory.posterFailed = true;
+  },
+  scheduleVideoFallback(memory: Memory) {
+    window.setTimeout(() => {
+      if (!memory.videoReady && !memory.poster)
+        this.markVideoPosterFailed(memory);
+    }, 2500);
+  },
+  clearBrokenPoster(memory: Memory) {
+    if (memory.type !== "video") return;
+    if (memory.posterObjectUrl && memory.poster)
+      URL.revokeObjectURL(memory.poster);
+    memory.poster = undefined;
+    memory.posterObjectUrl = false;
   },
   files(list: FileList) {
     const chosen = [...list];
