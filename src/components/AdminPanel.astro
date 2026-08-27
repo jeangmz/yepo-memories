@@ -97,6 +97,11 @@
         :aria-selected="tab === 'published'"
         @click="setTab('published')">Publicados</button
       >
+      <button
+        x-show="tab === 'published'"
+        @click="migratePublished()"
+        :disabled="busy">Mover a R2</button
+      >
     </div>
     <div x-show="tab === 'pending'">
       <p class="management-empty" x-show="!busy && !submissions.length">

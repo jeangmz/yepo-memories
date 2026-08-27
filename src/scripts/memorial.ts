@@ -8,6 +8,10 @@ const maxVideoBytes = 30 * 1024 ** 2;
 const maxTotalBytes = 60 * 1024 ** 2;
 const maxImageInputBytes = 15 * 1024 ** 2;
 const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const r2PublicUrl = "https://media.yepo.dev";
+
+const mediaUrl = (path: string) =>
+  `${r2PublicUrl}/${path.split("/").map(encodeURIComponent).join("/")}`;
 
 type SelectedFile = {
   file: File;
@@ -143,14 +147,20 @@ Alpine.data("memorial", () => ({
     ];
     this.memories = data.flatMap((submission, submissionIndex) =>
       (submission.media ?? [])
-        .filter((item) => item.published_bucket && item.published_path)
+        .filter(
+          (item) =>
+            item.r2_path || (item.published_bucket && item.published_path),
+        )
         .map((item, mediaIndex) => ({
           type: item.kind === "video" ? "video" : "photo",
-          src: supabase.storage
-            .from(item.published_bucket)
-            .getPublicUrl(item.published_path).data.publicUrl,
-          poster:
-            item.poster_bucket && item.poster_path
+          src: item.r2_path
+            ? mediaUrl(item.r2_path)
+            : supabase.storage
+                .from(item.published_bucket)
+                .getPublicUrl(item.published_path).data.publicUrl,
+          poster: item.r2_poster_path
+            ? mediaUrl(item.r2_poster_path)
+            : item.poster_bucket && item.poster_path
               ? supabase.storage
                   .from(item.poster_bucket)
                   .getPublicUrl(item.poster_path).data.publicUrl

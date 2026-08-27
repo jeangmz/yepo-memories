@@ -2,6 +2,11 @@ import Alpine from "alpinejs";
 import { supabase } from "../lib/supabase";
 import { notify } from "../lib/toast";
 
+const r2PublicUrl = "https://media.yepo.dev";
+
+const mediaUrl = (path: string) =>
+  `${r2PublicUrl}/${path.split("/").map(encodeURIComponent).join("/")}`;
+
 declare global {
   interface Window {
     yepoTurnstileSiteKey?: string;
@@ -35,6 +40,8 @@ type PublishedMedia = {
   published_path: string | null;
   poster_bucket: "gallery-images" | null;
   poster_path: string | null;
+  r2_path: string | null;
+  r2_poster_path: string | null;
   url: string;
   poster: string;
 };
@@ -46,53 +53,6 @@ type PublishedSubmission = {
   created_at: string;
   media: PublishedMedia[];
 };
-
-async function makeVideoPoster(file: Blob) {
-  const source = URL.createObjectURL(file);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "auto";
-  video.src = source;
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      video.addEventListener("loadeddata", () => resolve(), { once: true });
-      video.addEventListener(
-        "error",
-        () => reject(new Error("Vídeo no compatible.")),
-        {
-          once: true,
-        },
-      );
-      video.load();
-    });
-    if (!video.videoWidth || !video.videoHeight) return null;
-
-    const scale = Math.min(
-      1,
-      960 / Math.max(video.videoWidth, video.videoHeight),
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    canvas
-      .getContext("2d")
-      ?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", 0.72),
-    );
-    return blob
-      ? new File([blob], `${crypto.randomUUID()}.webp`, { type: "image/webp" })
-      : null;
-  } catch {
-    return null;
-  } finally {
-    video.removeAttribute("src");
-    video.load();
-    URL.revokeObjectURL(source);
-  }
-}
 
 Alpine.data("management", () => ({
   state: "checking" as "checking" | "guest" | "admin",
@@ -217,7 +177,7 @@ Alpine.data("management", () => ({
     const { data, error } = await supabase
       .from("submissions")
       .select(
-        "id, sender_name, message, created_at, media(id, kind, published_bucket, published_path, poster_bucket, poster_path)",
+        "id, sender_name, message, created_at, media(id, kind, published_bucket, published_path, poster_bucket, poster_path, r2_path, r2_poster_path)",
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false });
@@ -230,14 +190,20 @@ Alpine.data("management", () => ({
     this.published = data.map((submission) => ({
       ...submission,
       media: submission.media
-        .filter((item) => item.published_bucket && item.published_path)
+        .filter(
+          (item) =>
+            item.r2_path || (item.published_bucket && item.published_path),
+        )
         .map((item) => ({
           ...item,
-          url: supabase.storage
-            .from(item.published_bucket!)
-            .getPublicUrl(item.published_path!).data.publicUrl,
-          poster:
-            item.poster_bucket && item.poster_path
+          url: item.r2_path
+            ? mediaUrl(item.r2_path)
+            : supabase.storage
+                .from(item.published_bucket!)
+                .getPublicUrl(item.published_path!).data.publicUrl,
+          poster: item.r2_poster_path
+            ? mediaUrl(item.r2_poster_path)
+            : item.poster_bucket && item.poster_path
               ? supabase.storage
                   .from(item.poster_bucket)
                   .getPublicUrl(item.poster_path).data.publicUrl
@@ -285,43 +251,10 @@ Alpine.data("management", () => ({
   },
   async publish(item: PendingMedia, submissionId: string) {
     if (!supabase) return;
-    const { data: file, error: downloadError } = await supabase.storage
-      .from(item.pending_bucket)
-      .download(item.pending_path);
-    if (downloadError || !file)
-      throw downloadError ?? new Error("Archivo no disponible.");
-    const bucket = item.kind === "image" ? "gallery-images" : "gallery-videos";
-    const extension = item.kind === "image" ? "webp" : "mp4";
-    const path = `approved/${submissionId}/${item.id}.${extension}`;
-    const { error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(path, file, {
-        contentType: item.mime_type,
-        upsert: false,
-      });
-    if (uploadError) throw uploadError;
-    const poster = item.kind === "video" ? await makeVideoPoster(file) : null;
-    let posterPath: string | null = null;
-    if (poster) {
-      const candidatePath = `approved/${submissionId}/${item.id}.poster.webp`;
-      const { error: posterError } = await supabase.storage
-        .from("gallery-images")
-        .upload(candidatePath, poster, {
-          contentType: poster.type,
-          upsert: false,
-        });
-      if (!posterError) posterPath = candidatePath;
-    }
-    const { error: mediaError } = await supabase
-      .from("media")
-      .update({
-        published_bucket: bucket,
-        published_path: path,
-        poster_bucket: posterPath ? "gallery-images" : null,
-        poster_path: posterPath,
-      })
-      .eq("id", item.id);
-    if (mediaError) throw mediaError;
+    const { error } = await supabase.functions.invoke("manage-media", {
+      body: { action: "publish", mediaId: item.id, submissionId },
+    });
+    if (error) throw error;
   },
   async savePublished(submission: PublishedSubmission) {
     if (!supabase) return;
@@ -376,6 +309,13 @@ Alpine.data("management", () => ({
         const { error } = await supabase.storage.from(bucket).remove(paths);
         if (error) throw error;
       }
+      for (const item of submission.media) {
+        if (!item.r2_path) continue;
+        const { error } = await supabase.functions.invoke("manage-media", {
+          body: { action: "delete", mediaId: item.id },
+        });
+        if (error) throw error;
+      }
       const { error } = await supabase
         .from("submissions")
         .delete()
@@ -386,6 +326,35 @@ Alpine.data("management", () => ({
       notify("Recuerdo eliminado.");
     } catch {
       notify("No pudimos eliminar este recuerdo.", "error");
+    } finally {
+      this.busy = false;
+    }
+  },
+  async migratePublished() {
+    if (!supabase) return;
+    const targets = this.published
+      .flatMap((submission) => submission.media)
+      .filter((item) => !item.r2_path);
+    if (!targets.length) return notify("Todo lo publicado ya está en R2.");
+    this.busy = true;
+    let migrated = 0;
+    try {
+      for (const item of targets) {
+        const { error } = await supabase.functions.invoke("manage-media", {
+          body: { action: "migrate", mediaId: item.id },
+        });
+        if (error) throw error;
+        migrated += 1;
+      }
+      await this.loadPublished();
+      notify(
+        `${migrated} ${migrated === 1 ? "archivo migrado" : "archivos migrados"} a R2.`,
+      );
+    } catch {
+      notify(
+        `Se migraron ${migrated} archivos. Reintenta para continuar.`,
+        "error",
+      );
     } finally {
       this.busy = false;
     }
